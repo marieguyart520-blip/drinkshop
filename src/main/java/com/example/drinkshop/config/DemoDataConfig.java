@@ -13,6 +13,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * 示範用啟動初始化，只有 pos.demo.enabled=true 才執行，會寫入目前設定的資料庫。
+ * 補建缺少的測試員工與當日開班，不是正式開班／日結功能；隔離測試需停用。
+ */
 @Configuration
 public class DemoDataConfig {
     @Bean
@@ -37,6 +41,6 @@ public class DemoDataConfig {
         if (repo.staff(username).isEmpty()) repo.update(
             "INSERT INTO staff_account(username,password_hash,name,level,active) VALUES (?,?,?,?,TRUE)",
             username,encoder.encode(password),name,level);
-        // Existing accounts are never reactivated or silently reset.
+        // 已存在帳號不改密碼、不重新啟用；當日已有班表也不會重開已關閉的班。
     }
 }

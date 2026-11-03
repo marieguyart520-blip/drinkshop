@@ -15,6 +15,11 @@ import java.time.*;
 import java.util.*;
 import static com.example.drinkshop.repository.PosRepository.*;
 
+/**
+ * 訂單的主要業務流程。閱讀順序：create 建單 → changeStatus 製作／取餐 → cancel 取消。
+ * Controller 負責接 HTTP 請求，這裡負責計價、庫存、退款與狀態，repo 負責執行 SQL。
+ * 帶有 @Transactional 的方法會把資料庫操作放在同一筆交易中：失敗時一起回滾。
+ */
 @Service
 public class OrderService {
     private final PosRepository repo;
@@ -23,17 +28,21 @@ public class OrderService {
     public OrderService(PosRepository repo,RuleService rules,Clock clock) {
         this.repo=repo; this.rules=rules; this.clock=clock;
     }
+    // 計價後的暫存明細：price 是「含加料的單杯售價」，deducted 是這筆明細全部杯數的用料。
     private record Priced(Item item,Map<String,Object> product,List<Map<String,Object>> toppings,
                           BigDecimal price,Map<Long,BigDecimal> deducted) {}
 
+    // 操作人從已驗證的登入帳號取得，不能讓前端自行指定員工 ID。
     public Staff actor(String username) {
         return repo.staff(username).filter(Staff::active)
             .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED,"員工帳號已停用"));
     }
 
+    /** 建立多杯訂單：檢查開班與規則 → 後端計價 → 檢查庫存 → 存訂單與明細 → 扣料。 */
     @Transactional(isolation=Isolation.READ_COMMITTED)
     public Map<String,Object> create(Create request,String username) {
         Staff staff=actor(username);
+        // 同一次送單重試沿用 requestId；若先前已成功，回傳原單，避免多建單、多扣料。
         String orderNo=request.requestId().toString();
         String hash=hashRequest(request);
         var existing=repo.rows("SELECT * FROM pos_order WHERE order_no=?",orderNo);
@@ -45,7 +54,7 @@ public class OrderService {
         if (!request.unpaid() && request.payment()==null) throw ApiException.bad("請選擇付款方式");
         LocalDate date=LocalDate.now(clock);
         lockShift(date);
-        // All writers for one business day serialize here, including concurrent retries.
+        // 同營業日的訂單異動先鎖開班資料，依序處理；等鎖期間可能已建單，所以再查一次。
         existing=repo.rows("SELECT * FROM pos_order WHERE order_no=?",orderNo);
         if (!existing.isEmpty()) return replay(existing.getFirst(),hash,staff.id());
         if (request.memberPhone()!=null) repo.one("SELECT phone FROM member WHERE phone=?",request.memberPhone());
@@ -54,6 +63,7 @@ public class OrderService {
         var priced=new ArrayList<Priced>();
         var allDeductions=new TreeMap<Long,BigDecimal>();
         BigDecimal total=Money.ZERO;
+        // 一張訂單有多筆 Item；每筆可有多杯，但共用杯型、冰甜、加料與備註。
         for (Item item:request.items()) {
             var product=repo.product(item.productId());
             rules.validate(item,product);
@@ -75,7 +85,7 @@ public class OrderService {
         if (request.receivedCash()!=null) Money.checked(request.receivedCash());
         if (request.payment()==Payment.CASH && (request.receivedCash()==null || request.receivedCash().compareTo(total)<0))
             throw ApiException.bad("實收現金不足");
-        // Stable inventory lock order prevents overselling and reduces deadlocks.
+        // TreeMap 依原料 ID 固定順序上鎖；FOR UPDATE 讓其他交易等待，避免同時扣到負庫存。
         for(var deduction:allDeductions.entrySet()) {
             var stock=repo.one("SELECT book_qty FROM inventory WHERE inventory_id=? FOR UPDATE",deduction.getKey());
             if(new BigDecimal(stock.get("book_qty").toString()).compareTo(deduction.getValue())<0)
@@ -90,6 +100,7 @@ public class OrderService {
             request.receivedCash(),request.payment()==Payment.CASH?request.receivedCash().subtract(total):null,
             request.distance(),request.duration(),request.addressNote(),request.note(),staff.id(),now,hash,
             request.unpaid()?"UNPAID":"PAID",request.unpaid()?Money.ZERO:total);
+        // 存下當時的品名、售價、用料與成本；以後改菜單或配方，不回頭改歷史訂單。
         for(Priced line:priced) {
             Item item=line.item();
             long itemId=repo.insert("item_id", """
@@ -114,7 +125,7 @@ public class OrderService {
         catch(Exception ex) { throw new IllegalStateException(ex); }
     }
     private String hashRequest(Create request) {
-        // Preserve the original key order/names so pre-migration request hashes still match.
+        // 固定欄位順序與舊名稱，讓舊版送單重試的雜湊仍能比對；金額格式差異會先統一。
         var fields=new LinkedHashMap<String,Object>();
         fields.put("requestId",request.requestId()); fields.put("source",request.source());
         fields.put("payment",request.payment()); fields.put("memberPhone",request.memberPhone());
@@ -125,6 +136,8 @@ public class OrderService {
         if(request.unpaid()) fields.put("unpaid",true);
         return hash(rules.write(fields));
     }
+    // 成本 = 各原料單位成本 × 本明細用量（含杯材、加料）；缺成本回傳 null，不能誤算成零。
+    // 這是原料成本，不包含租金、人事，也不是售價或退款金額。
     private BigDecimal materialCost(Map<Long,BigDecimal> quantities) {
         BigDecimal cost=Money.ZERO;
         for(var entry:quantities.entrySet()) {
@@ -136,6 +149,7 @@ public class OrderService {
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
+    // 替「先接單、稍後付款」的舊訂單補收款，只記錄店員確認的結果，沒有呼叫金流平台。
     public Map<String,Object> collect(long id,Collect request,String username) {
         actor(username); var order=lockOrder(id);
         if(request.payment()==Payment.UBER_EATS) throw ApiException.bad("Uber Eats 不是付款方式");
@@ -154,6 +168,7 @@ public class OrderService {
             request.payment().name(),amount,cash,cash==null?null:cash.subtract(amount),LocalDateTime.now(clock),id);
         return repo.detail(id);
     }
+    // 配方依 M／L 取單杯用量，再乘 qty；加料用量在 create 中另外加進來。
     private Map<Long,BigDecimal> recipe(Map<String,Object> product,Item item) {
         var recipe=rules.parse(product.get("recipe_json")).path(item.size().name());
         if (!recipe.isArray() || recipe.isEmpty()) throw ApiException.conflict("此杯型缺少扣料配方");
@@ -171,6 +186,7 @@ public class OrderService {
     private void add(Map<Long,BigDecimal> quantities,long id,BigDecimal qty) {
         quantities.merge(id,qty,BigDecimal::add);
     }
+    // 日結後禁止改單；鎖定順序統一為「開班 → 訂單 → 明細／庫存」。
     private void lockShift(LocalDate date) {
         var rows=repo.rows("SELECT * FROM daily_shift WHERE business_date=? FOR UPDATE",date);
         if(rows.isEmpty() || !"OPEN".equals(rows.getFirst().get("status")))
@@ -183,6 +199,7 @@ public class OrderService {
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
+    // 單筆明細只能向前：待製作 → 製作中 → 完成待取 → 已取餐；取消另走 cancel。
     public Map<String,Object> changeStatus(long orderId,long itemId,ItemStatus next,String username) {
         actor(username); var order=lockOrder(orderId);
         var item=repo.one("SELECT * FROM order_item WHERE order_id=? AND item_id=? FOR UPDATE",orderId,itemId);
@@ -200,6 +217,7 @@ public class OrderService {
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
+    // 整單操作只推進符合上一階段的明細；整單取餐還要求已收款且沒有未完成飲品。
     public Map<String,Object> changeAllStatuses(long orderId,ItemStatus next,String username) {
         actor(username); var order=lockOrder(orderId);
         String previous=switch(next) {
@@ -214,7 +232,7 @@ public class OrderService {
             if(items.stream().anyMatch(i->Set.of("PENDING","MAKING").contains(i.get("status"))))
                 throw ApiException.conflict("還有飲品尚未製作完成，不能整單取餐");
         }
-        // Change only adjacent eligible lines; cancelled/wasted/advanced lines stay untouched.
+        // 已取消、已損耗或已走到後面階段的明細，不會被整單按鈕倒退或覆寫。
         for(var item:items) if(previous.equals(item.get("status")))
             repo.update("UPDATE order_item SET status=?,updated_at=? WHERE item_id=?",next.name(),LocalDateTime.now(clock),item.get("item_id"));
         refresh(orderId);
@@ -222,28 +240,32 @@ public class OrderService {
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
+    // itemId 為 null 表示整單；有值則取消該明細的全部杯數，目前不拆同筆中的單杯。
+    // 尚未製作：回補建單時扣掉的原料；已開始製作：轉 WASTED，原料不回補。
     public Map<String,Object> cancel(long orderId,Long itemId,Cancel request,String username) {
         Staff staff=actor(username); var order=lockOrder(orderId);
         var items=repo.rows("SELECT * FROM order_item WHERE order_id=? ORDER BY item_id FOR UPDATE",orderId);
         if(itemId!=null) items=items.stream().filter(i->number(i,"item_id")==itemId).toList();
         if(items.isEmpty()) throw ApiException.missing("找不到訂單明細");
         var active=items.stream().filter(i->!Set.of("CANCELLED","WASTED").contains(i.get("status"))).toList();
-        if(active.isEmpty()) return repo.detail(orderId); // Retry never restores twice.
+        if(active.isEmpty()) return repo.detail(orderId); // 重試已取消項目時直接回原單，不再回補或退款。
         if(active.stream().anyMatch(i->"PICKED_UP".equals(i.get("status"))))
             throw ApiException.conflict("已取餐訂單的退款不在本版操作範圍");
         BigDecimal cancelledValue=active.stream().map(i->Money.from(i,"unit_price").multiply(BigDecimal.valueOf(integer(i,"qty")))).reduce(Money.ZERO,BigDecimal::add);
+        // 退款上限同時受「本次取消售價」與「已收款扣掉已退款」限制；未付款自然只能退 0。
         BigDecimal available=Money.from(order,"paid_amount").subtract(Money.from(order,"refunded_amount"));
         BigDecimal maximum=cancelledValue.min(available);
         BigDecimal refund=request.refundAmount()==null?maximum:Money.checked(request.refundAmount());
         if(refund.compareTo(maximum)>0) throw ApiException.bad("退款不能超過本次取消品項金額或尚未退還的已收款");
         boolean needsManager=active.stream().anyMatch(i->!"PENDING".equals(i.get("status")));
-        // Legacy approved_by now records the signed-in wastage operator, not manager approval.
+        // needsManager 是舊變數名；目前已取消 PIN 審核，approved_by 記錄實際操作員工。
         Long approved=needsManager?staff.id():null;
         var restores=new TreeMap<Long,BigDecimal>();
         for(var item:active) {
             boolean pending="PENDING".equals(item.get("status"));
             if(pending) {
                 if(item.get("deducted_inventory_json")==null) throw ApiException.conflict("舊明細缺少扣料快照，請先核對原料再取消");
+                // 回補用「當時扣料快照」，不能用現在的配方重算，否則配方改過就會補錯。
                 var fields=rules.parse(item.get("deducted_inventory_json")).fields();
                 while(fields.hasNext()) {
                     var field=fields.next();
@@ -258,7 +280,7 @@ public class OrderService {
             repo.update("UPDATE inventory SET book_qty=book_qty+? WHERE inventory_id=?",restore.getValue(),restore.getKey());
         }
         repo.update("UPDATE pos_order SET refunded_amount=refunded_amount+?,change_cash=CASE WHEN payment='CASH' THEN change_cash+? ELSE NULL END WHERE order_id=?",refund,refund,orderId);
-        // Allocate a single cancellation refund to its lines for later audit, exactly once.
+        // 將本次退款依明細順序分配，方便追查；只記錄已由店員人工完成的退款。
         BigDecimal remaining=refund;
         for(var item:active) {
             BigDecimal portion=remaining.min(Money.from(item,"unit_price").multiply(BigDecimal.valueOf(integer(item,"qty"))));
@@ -268,6 +290,8 @@ public class OrderService {
         refresh(orderId);
         return repo.detail(orderId);
     }
+    // 依仍保留的明細重算總額與整單狀態；取消的明細仍保存在資料庫，沒有刪除。
+    // total 是保留品項金額；淨收款要算 paid_amount - refunded_amount，兩者不能混用。
     private void refresh(long orderId) {
         var order=repo.order(orderId);
         var live=repo.items(orderId).stream().filter(i->!Set.of("CANCELLED","WASTED").contains(i.get("status"))).toList();
@@ -279,7 +303,7 @@ public class OrderService {
         else if(live.stream().allMatch(i->Set.of("DONE","PICKED_UP").contains(i.get("status")))) status="DONE";
         else if(live.stream().allMatch(i->"PENDING".equals(i.get("status")))) status="PENDING";
         else status="MAKING";
-        // Cash change is cumulative returned cash (initial change + manually returned refunds).
+        // change_cash 保留累計退回現金（原找零＋人工退款），不代表只有最初的找零。
         BigDecimal returned="CASH".equals(order.get("payment"))?Money.from(order,"received_cash").subtract(Money.from(order,"paid_amount")).add(Money.from(order,"refunded_amount")):null;
         repo.update("UPDATE pos_order SET total=?,change_cash=?,status=?,updated_at=? WHERE order_id=?",total,returned,status,LocalDateTime.now(clock),orderId);
     }

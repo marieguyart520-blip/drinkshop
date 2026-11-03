@@ -7,9 +7,11 @@ import java.util.UUID;
 import java.math.BigDecimal;
 import com.fasterxml.jackson.annotation.JsonAlias;
 
+/** 前端送入的資料格式（DTO）；record 是欄位固定的資料載體，驗證註記由 @Valid 觸發。 */
 public final class OrderRequests {
     private OrderRequests() {}
     public enum Source { DINE_IN, TAKE_OUT, PHONE_DELIVERY, UBER_EATS }
+    // UBER_EATS 保留供舊資料相容；新收款由 Service 拒絕，應放在 Source 訂單來源。
     public enum Payment { CASH, CREDIT_CARD, LINE_PAY, UBER_EATS }
     public enum Size { M, L }
     public enum Temperature { COLD, WARM, HOT }
@@ -17,12 +19,14 @@ public final class OrderRequests {
     public enum Ice { NORMAL, LESS, LIGHT, NONE }
     public enum ItemStatus { PENDING, MAKING, DONE, PICKED_UP, CANCELLED, WASTED }
 
+    // Item 代表「一種完整客製規格 × qty 杯」，toppingIds 只放額外加料的 ID。
     public record Item(@NotNull @Positive Long productId, @NotNull Size size,
         @NotNull Temperature temperature, @NotNull Sugar sugar, @NotNull Ice ice,
         @Min(1) @Max(100) int qty,
         @NotNull @jakarta.validation.constraints.Size(max=20) List<@NotNull @Positive Long> toppingIds,
         @jakarta.validation.constraints.Size(max=255) String note) {}
-    // No client price/total/staffId: server owns pricing and identity.
+    // 不接收前端售價、總額或員工 ID：後端自行計價，操作人由登入身份取得。
+    // requestId 用於安全重試；unpaid=true 表示先建單扣料，稍後才收款。
     public record Create(@NotNull UUID requestId, @NotNull Source source, Payment payment,
         @Pattern(regexp="[0-9+() -]{5,20}") String memberPhone,
         @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal receivedCash,
@@ -36,6 +40,8 @@ public final class OrderRequests {
             this(id,source,payment,phone,cash,distance,duration,address,note,items,false);
         }
     }
+    // managerUsername／managerPin 是舊版相容欄位，目前取消不以 PIN 授權。
+    // refundAmount 為人工實際退還金額；未傳時由 Service 算可退上限。
     public record Cancel(@NotBlank @jakarta.validation.constraints.Size(max=255) String reason,
         @jakarta.validation.constraints.Size(max=50) String managerUsername,
         @jakarta.validation.constraints.Size(max=6) String managerPin,

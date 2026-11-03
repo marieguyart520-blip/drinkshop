@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.Map;
 
+/** 統一將例外轉成 HTTP 狀態碼與 {success:false, message:提示}，前端即可顯示一致的訊息。 */
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
@@ -34,6 +35,7 @@ public class ApiExceptionHandler {
         log.warn("Database constraint/concurrency conflict: {}", ex.getClass().getSimpleName());
         return error(409, "資料已變更或不符合限制，請重新查詢後再試");
     }
+    // 未預期錯誤的細節留在後端日誌，回應只給通用提示，不把 SQL 或內部堆疊傳給前端。
     @ExceptionHandler(Exception.class)
     ResponseEntity<?> unexpected(Exception ex) {
         log.error("Unexpected POS request failure", ex);

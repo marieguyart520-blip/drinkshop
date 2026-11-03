@@ -15,6 +15,7 @@ import java.nio.file.*;
 import java.io.IOException;
 import java.util.*;
 
+/** 損耗照片存成檔案，資料庫只記檔名；每筆已損耗明細目前限一張。 */
 @Service
 public class PhotoService {
     private final Path directory;
@@ -32,6 +33,7 @@ public class PhotoService {
         if(file.isEmpty() || file.getSize()>5L*1024*1024) throw ApiException.bad("請選擇 5 MB 以內的 JPEG 或 PNG 圖片");
         String filename=UUID.randomUUID()+".png";
         Path target=directory.resolve(filename);
+        // 不只看副檔名或前端 MIME：實際解碼確認 JPEG／PNG，並限制 5 MB、1200 萬像素。
         try(var input=ImageIO.createImageInputStream(file.getInputStream())) {
             if(input==null) throw ApiException.bad("無法讀取圖片");
             var readers=ImageIO.getImageReaders(input);
@@ -45,11 +47,12 @@ public class PhotoService {
                 if(pixels>12000000) throw ApiException.bad("圖片不可超過 1200 萬像素，請先縮小");
                 var image=reader.read(0);
                 Files.createDirectories(directory);
-                // Server-generated name and re-encoding: ignore filename, MIME and metadata.
+                // 後端產生隨機檔名並重編碼成 PNG，不沿用使用者檔名或圖片附帶資訊。
                 try(var output=Files.newOutputStream(target,StandardOpenOption.CREATE_NEW)) {
                     if(!ImageIO.write(image,"png",output)) throw new IOException("PNG encoder unavailable");
                 }
             } finally { reader.dispose(); }
+            // 檔案不受資料庫交易控制；若資料庫回滾，要另外刪掉剛存的檔案。
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override public void afterCompletion(int status) {
                     if(status!=STATUS_COMMITTED) remove(target);
@@ -62,6 +65,7 @@ public class PhotoService {
         }
         return Map.of("photo_url","/api/orders/"+orderId+"/items/"+itemId+"/photo");
     }
+    // 只允許讀取指定目錄中的合法檔名，避免任意路徑讀檔。
     public Resource read(long orderId,long itemId) {
         var row=repo.one("SELECT photo_path FROM order_item WHERE order_id=? AND item_id=?",orderId,itemId);
         Object name=row.get("photo_path");

@@ -9,11 +9,13 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+/** 後端點餐防呆：前端會先調整選項，但送單時仍以這裡的驗證為準。 */
 @Service
 public class RuleService {
     private final PosRepository repo;
     private final ObjectMapper json;
     public RuleService(PosRepository repo,ObjectMapper json) { this.repo=repo; this.json=json; }
+    // 相容資料庫驅動回傳的 JSON 字串／位元組，以及外層又包一層字串的舊資料。
     public JsonNode parse(Object value) {
         try {
             String text=value instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8) : value.toString();
@@ -32,6 +34,8 @@ public class RuleService {
             if (item.ice()!=com.example.drinkshop.dto.OrderRequests.Ice.NONE) throw ApiException.bad("溫熱飲不可加冰");
         }
         if (item.toppingIds().stream().distinct().count()!=item.toppingIds().size()) throw ApiException.bad("同一種額外加料不可重複");
+        // condition_json 決定何時套用；action_json 決定禁止、固定、上限或互斥的內容。
+        // AUTO_ADJUST 在後端是檢查固定值是否正確，不會偷偷替前端改掉送單內容。
         for (var row:repo.rules()) {
             var condition=parse(row.get("condition_json"));
             if (!matches(condition,item,product)) continue;
@@ -65,6 +69,7 @@ public class RuleService {
             }
         }
     }
+    // 同一個條件物件內的條件必須全部符合，才會啟用該條規則。
     private boolean matches(JsonNode condition,Item item,Map<String,Object> product) {
         if (!condition.isObject() || condition.isEmpty()) throw ApiException.conflict("規則條件不可空白");
         boolean matches=true;

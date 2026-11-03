@@ -7,11 +7,17 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 import java.util.*;
 
+/**
+ * 資料庫存取層：JdbcTemplate 執行 SQL，結果以 Map 的欄位名稱取值。
+ * 這版使用 Spring JDBC，沒有 JPA Entity 自動建表；規則與交易流程在 Service。
+ * SQL 的 ? 配合 args 傳值，不把使用者輸入直接拼入 SQL。
+ */
 @Repository
 public class PosRepository {
     private final JdbcTemplate jdbc;
     public PosRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    // rows 查多筆；one 查一筆且找不到就回 404；update 用於新增／修改／刪除。
     public List<Map<String,Object>> rows(String sql, Object... args) { return jdbc.queryForList(sql, args); }
     public Map<String,Object> one(String sql, Object... args) {
         var rows = rows(sql, args);
@@ -19,6 +25,7 @@ public class PosRepository {
         return rows.getFirst();
     }
     public int update(String sql, Object... args) { return jdbc.update(sql, args); }
+    // 新增資料後取回資料庫自動編號，供訂單明細與加料建立關聯。
     public long insert(String keyColumn, String sql, Object... args) {
         var holder = new GeneratedKeyHolder();
         jdbc.update(connection -> {
@@ -41,6 +48,7 @@ public class PosRepository {
     public List<Map<String,Object>> items(long orderId) {
         return rows("SELECT * FROM order_item WHERE order_id=? ORDER BY item_id", orderId);
     }
+    // 組成「訂單主檔 → 多筆明細 → 每筆多種加料」；移除內部快照與檔案路徑。
     public Map<String,Object> detail(long id) {
         var order = new LinkedHashMap<>(order(id));
         order.remove("request_hash");

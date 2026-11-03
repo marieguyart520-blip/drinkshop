@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
 
-/** All prices and totals use exact cents, matching MySQL DECIMAL(10,2). */
+/** 金額用 BigDecimal 保留兩位小數，對應 MySQL DECIMAL(10,2)，避免浮點數加總誤差。 */
 public final class Money {
     public static final BigDecimal ZERO = new BigDecimal("0.00");
     private static final BigDecimal MAX = new BigDecimal("99999999.99");
@@ -20,7 +20,7 @@ public final class Money {
     public static BigDecimal from(Map<String,Object> row,String key) {
         return checked(new BigDecimal(row.get(key).toString()));
     }
-    // 100, 100.0 and 100.00 represent the same idempotent request.
+    // 100、100.0、100.00 視為相同金額，避免同筆重試只因格式不同被判定內容變更。
     public static BigDecimal canonical(BigDecimal amount) {
         if(amount==null) return null;
         BigDecimal stripped=amount.stripTrailingZeros();
