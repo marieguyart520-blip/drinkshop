@@ -22,7 +22,8 @@ Workbench 預設開啟 Safe Updates，會擋下 006 的 UPDATE（Error 1175）�
 4. `005_team_er_alignment.sql`：團隊 ER 圖調整（金額小數、加料獨立主鍵、距離時間改名；既有本機已套用）。
 5. `006_demo_ingredient_costs.sql`：新增每單位成本與八種原料假成本（本機已套用）。
 6. `007_payment_and_wastage_workbench.sql`：收款、退款與損耗欄位。內含原本由 `scripts/migrate_payment.py` 先做的「刪除舊現金約束」，可直接在 Workbench 執行；不要直接執行 `007_payment_and_wastage.sql`。
-7. `003_verify.sql`（選用）：檢查原始範例訂單金額、庫存及配方原料參照。
+7. `008_member_geo_source.sql`：會員座標來源欄位 `geo_source`（GEOCODE／MANUAL），供 HERE 外送地圖使用。
+8. `003_verify.sql`（選用）：檢查原始範例訂單金額、庫存及配方原料參照。
 
 `scripts/` 裡的 Python 腳本只連本機 `127.0.0.1:3306`，不能用於雲端資料庫。
 

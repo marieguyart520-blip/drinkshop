@@ -33,10 +33,12 @@ POST /api/members
 ```json
 {
   "phone": "0912345678", "name": "王小明", "address": "台北市信義路一段1號",
-  "lat": 25.0330000, "lng": 121.5654000, "note": "少冰",
+  "lat": 25.0330000, "lng": 121.5654000, "geoSource": "MANUAL", "note": "少冰",
   "createdAt": "2026-10-31T00:30:00", "updatedAt": "2026-10-31T00:30:00"
 }
 ```
+
+`geoSource` 是座標來源：`MANUAL` 為店員手動設定（透過本 API 填入的座標都是這個），`GEOCODE` 為 HERE 由地址自動計算，沒有座標時為 null。這個欄位由後端決定，送進來會被忽略。
 
 ## 修改
 

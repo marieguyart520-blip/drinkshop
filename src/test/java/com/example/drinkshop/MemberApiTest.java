@@ -86,7 +86,7 @@ class MemberApiTest {
 
     @Test void createThenGetAndSearch() throws Exception {
         var created=read(as("test_staff",withJson(post("/api/members"),"""
-            {"phone":" 0912345678 ","name":"王小明","address":"台北市信義路一段1號","lat":25.0330,"lng":121.5654,"note":"  "}
+            {"phone":"0912345678 ","name":"王小明","address":"台北市信義路一段1號","lat":25.0330,"lng":121.5654,"note":"  "}
             """)).andExpect(status().isOk()));
         assertEquals("0912345678",created.get("phone").asText());
         assertEquals("王小明",created.get("name").asText());

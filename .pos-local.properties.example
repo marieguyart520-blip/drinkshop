@@ -7,3 +7,5 @@ POS_DB_PASSWORD=<見共用文件>
 # 全組請使用共用文件上的同一個密碼（至少 6 碼）。
 pos.demo.enabled=true
 pos.demo.password=123456
+HERE_API_KEY=<見共用文件>
+HERE_MAP_KEY=<見共用文件>

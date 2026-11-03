@@ -21,25 +21,31 @@ public class MemberService {
     private final EntityManager em;
 
     public MemberService(MemberRepository members, PosRepository pos, OrderService orders, EntityManager em) {
-        this.members = members; this.pos = pos; this.orders = orders; this.em = em;
+        this.members = members;
+        this.pos = pos;
+        this.orders = orders;
+        this.em = em;
     }
 
     @Transactional(readOnly = true)
     public List<Response> search(String keyword) {
         String k = keyword == null ? "" : keyword.trim();
         var found = k.isEmpty() ? members.findTop50ByOrderByCreatedAtDesc()
-            : members.findTop50ByPhoneContainingOrNameContainingOrderByPhoneAsc(k, k);
+                : members.findTop50ByPhoneContainingOrNameContainingOrderByPhoneAsc(k, k);
         return found.stream().map(Response::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public Response get(String phone) { return Response.from(find(phone)); }
+    public Response get(String phone) {
+        return Response.from(find(phone));
+    }
 
     @Transactional
     public Response create(Create request, String username) {
         orders.actor(username);
         String phone = request.phone().trim();
-        if (members.existsById(phone)) throw ApiException.conflict("此電話已經是會員");
+        if (members.existsById(phone))
+            throw ApiException.conflict("此電話已經是會員");
         checkLocation(request.lat(), request.lng());
         var member = new Member(phone, request.name().trim());
         apply(member, request.address(), request.lat(), request.lng(), request.note());
@@ -54,8 +60,20 @@ public class MemberService {
         orders.actor(username);
         var member = find(phone);
         checkLocation(request.lat(), request.lng());
+        boolean addressChanged = !Objects.equals(member.getAddress(), blankToNull(request.address()));
+        boolean sameCoordinates = Objects.equals(member.getLat(), request.lat())
+                && Objects.equals(member.getLng(), request.lng());
         member.setName(request.name().trim());
-        apply(member, request.address(), request.lat(), request.lng(), request.note());
+        if (addressChanged && sameCoordinates) {
+            // 地址改了、座標卻是舊的 → 舊座標作廢，下次點開會用新地址重新 geocode
+            apply(member, request.address(), null, null, request.note());
+        } else if (sameCoordinates) {
+            var source = member.getGeoSource(); // 座標沒動 → 來源也不動
+            apply(member, request.address(), request.lat(), request.lng(), request.note());
+            member.setGeoSource(source);
+        } else {
+            apply(member, request.address(), request.lat(), request.lng(), request.note());
+        }
         em.flush();
         em.refresh(member);
         return Response.from(member);
@@ -68,34 +86,41 @@ public class MemberService {
             throw new ApiException(HttpStatus.FORBIDDEN, "只有店長或總部可以刪除會員");
         var member = find(phone);
         long orderCount = PosRepository.number(
-            pos.one("SELECT COUNT(*) AS c FROM pos_order WHERE member_phone=?", member.getPhone()), "c");
-        if (orderCount > 0) throw ApiException.conflict("此會員已有訂單紀錄，不能刪除");
+                pos.one("SELECT COUNT(*) AS c FROM pos_order WHERE member_phone=?", member.getPhone()), "c");
+        if (orderCount > 0)
+            throw ApiException.conflict("此會員已有訂單紀錄，不能刪除");
         members.delete(member);
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> orders(String phone) {
         var member = find(phone);
-        return pos.rows("""
-            SELECT order_id,order_no,business_date,source,payment,payment_status,paid_amount,refunded_amount,total,status,created_at
-            FROM pos_order WHERE member_phone=? ORDER BY order_id DESC LIMIT 50
-            """, member.getPhone());
+        return pos.rows(
+                """
+                        SELECT order_id,order_no,business_date,source,payment,payment_status,paid_amount,refunded_amount,total,status,created_at
+                        FROM pos_order WHERE member_phone=? ORDER BY order_id DESC LIMIT 50
+                        """,
+                member.getPhone());
     }
 
     private Member find(String phone) {
         String p = phone == null ? "" : phone.trim();
-        if (!p.matches(PHONE_PATTERN)) throw ApiException.bad("電話格式不正確");
+        if (!p.matches(PHONE_PATTERN))
+            throw ApiException.bad("電話格式不正確");
         return members.findById(p).orElseThrow(() -> ApiException.missing("找不到此會員"));
     }
 
     private static void checkLocation(BigDecimal lat, BigDecimal lng) {
-        if ((lat == null) != (lng == null)) throw ApiException.bad("經緯度要同時填寫或同時留空");
+        if ((lat == null) != (lng == null))
+            throw ApiException.bad("經緯度要同時填寫或同時留空");
     }
 
     private static void apply(Member member, String address, BigDecimal lat, BigDecimal lng, String note) {
         member.setAddress(blankToNull(address));
         member.setLat(lat);
         member.setLng(lng);
+        // 透過會員 API 填入的座標一律視為店員手動設定；HERE 自動計算的座標由 geocode 流程另外寫入 GEOCODE。
+        member.setGeoSource(lat == null ? null : Member.GeoSource.MANUAL);
         member.setNote(blankToNull(note));
     }
 

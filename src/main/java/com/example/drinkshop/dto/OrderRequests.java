@@ -24,7 +24,7 @@ public final class OrderRequests {
         @jakarta.validation.constraints.Size(max=255) String note) {}
     // No client price/total/staffId: server owns pricing and identity.
     public record Create(@NotNull UUID requestId, @NotNull Source source, Payment payment,
-        @Pattern(regexp="[0-9+() -]{5,20}") String memberPhone,
+        @Pattern(regexp="\\d{5,20}") String memberPhone,
         @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal receivedCash,
         @JsonAlias("distanceM") @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal distance,
         @JsonAlias("durationSeconds") @Min(0) Integer duration,
