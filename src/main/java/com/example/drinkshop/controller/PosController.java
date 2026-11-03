@@ -3,6 +3,7 @@ package com.example.drinkshop.controller;
 import com.example.drinkshop.dto.OrderRequests.*;
 import com.example.drinkshop.repository.PosRepository;
 import com.example.drinkshop.service.*;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,6 +33,7 @@ public class PosController {
     }
     // 健康檢查同時確認服務已就緒、資料庫能查詢；不會新增或修改資料。
     @GetMapping("/health")
+    @SecurityRequirements
     ResponseEntity<?> health() {
         if(availability.getReadinessState()!=ReadinessState.ACCEPTING_TRAFFIC)
             return ResponseEntity.status(503).body(Map.of("status","STARTING"));

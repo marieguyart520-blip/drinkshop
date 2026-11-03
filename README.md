@@ -44,6 +44,26 @@ pos.demo.password=<見共用文件>
 啟動類別：`com.example.drinkshop.DrinkshopApplication`。預設網址 `http://localhost:8083`，只監聽本機。
 健康檢查：`GET /api/health`。
 
+### Swagger UI（瀏覽器測 API）
+
+第一次下載此開發分支，先安裝 Java 21，再執行：
+
+```powershell
+git clone --branch codex/integration https://github.com/nickfizz0208/drinkshop-pos-backend.git
+cd drinkshop-pos-backend
+Copy-Item .pos-local.properties.example .pos-local.properties
+```
+
+依上方「連線設定」填入資料庫設定後，執行 `& .\scripts\start-pos.ps1 -Build`。只看 Swagger 與測後端 API 不需要啟動 Angular。每位使用者都在自己的電腦啟動後端，並開啟自己的 `localhost`。
+
+1. 啟動後開啟 [Swagger UI](http://localhost:8083/swagger-ui/index.html)（也可使用 `/swagger-ui.html`）。若有設定 `PORT`，請改用對應連接埠。
+2. 點右上角 **Authorize**，輸入有效員工帳號與密碼（與前端登入相同的 HTTP Basic 帳密）。
+3. 展開 API，點 **Try it out**，填入參數或 JSON，再點 **Execute** 查看回應。
+
+文件與 UI 可免登入讀取；除 `/api/health` 外，API 仍需員工驗證。OpenAPI JSON 位於 `/v3/api-docs`。
+建立訂單、收款、取消與照片上傳會操作目前設定的資料庫；團隊共用資料庫請使用測試資料。
+Swagger UI 不設定跨重新整理保存帳密，重新整理後可再次使用 Authorize。
+
 ```powershell
 .\gradlew.bat --gradle-user-home "$env:USERPROFILE\.gradle" test bootJar
 ```

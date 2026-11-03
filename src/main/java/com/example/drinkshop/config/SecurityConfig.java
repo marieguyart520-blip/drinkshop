@@ -36,7 +36,7 @@ public class SecurityConfig {
         var source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/api/**",cors);
         return source;
     }
-    // STATELESS：後端不靠登入 Session；只有 health 與預檢免登入，其餘 /api 都需驗證。
+    // STATELESS：後端不靠登入 Session；文件、health 與預檢免登入，其餘 /api 都需驗證。
     // 這版 API 由前端明確帶 Authorization，不使用 Cookie Session，CSRF 設定依此設計。
     @Bean SecurityFilterChain security(HttpSecurity http) throws Exception {
         return http.csrf(c -> c.disable()).cors(Customizer.withDefaults())
@@ -52,6 +52,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(a -> a
                 .requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                 .requestMatchers("/api/health").permitAll()
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().denyAll()).build();
     }
