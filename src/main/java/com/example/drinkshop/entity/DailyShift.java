@@ -5,47 +5,63 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * 每日班次與日結實體（對應 daily_shift 資料表）
+ */
 @Entity
 @Table(name = "daily_shift")
 public class DailyShift {
 
+    // 營業日期（主鍵）
     @Id
     @Column(name = "business_date")
     private LocalDate businessDate;
 
+    // 班次狀態（OPEN: 開班中, CLOSED: 已結班）
     @Column(name = "status", length = 10, nullable = false)
     private String status = "OPEN";
 
+    // 開班人員員工編號
     @Column(name = "opened_by", nullable = false)
     private Long openedBy;
 
+    // 開班時間
     @Column(name = "opened_at", nullable = false)
     private LocalDateTime openedAt;
 
+    // 開班零用金 / 備用金
     @Column(name = "petty_cash", precision = 10, scale = 2, nullable = false)
     private BigDecimal pettyCash;
 
+    // 當日員工排班崗位與角色（JSON 格式字串）
     @Column(name = "roles_json", columnDefinition = "json", nullable = false)
     private String rolesJson;
 
+    // 各支付方式營收統計（JSON 格式字串）
     @Column(name = "revenue_by_payment", columnDefinition = "json")
     private String revenueByPayment;
 
+    // 當日總銷售杯數
     @Column(name = "cups")
     private Integer cups;
 
+    // 系統應有現金金額（零用金 + 現金營收 - 現金退款）
     @Column(name = "expected_cash", precision = 10, scale = 2)
     private BigDecimal expectedCash;
 
+    // 關班實際清點現金金額
     @Column(name = "counted_cash", precision = 10, scale = 2)
     private BigDecimal countedCash;
 
+    // 現金短溢差異原因說明
     @Column(name = "diff_reason")
     private String diffReason;
 
+    // 關班結算人員員工編號
     @Column(name = "closed_by")
     private Long closedBy;
 
+    // 關班結算時間
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
@@ -175,4 +191,3 @@ public class DailyShift {
         this.closedAt = closedAt;
     }
 }
-

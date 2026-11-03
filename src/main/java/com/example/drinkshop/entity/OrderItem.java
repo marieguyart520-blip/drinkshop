@@ -4,69 +4,92 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 訂單品項明細實體（對應 order_item 資料表）
+ */
 @Entity
 @Table(name = "order_item")
 public class OrderItem {
 
+    // 明細品項流水號（主鍵，自動遞增）
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "item_id")
     private Long itemId;
 
+    // 所屬訂單編號
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    // 商品編號
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
+    // 商品名稱（例如 熟成紅茶）
     @Column(name = "product_name", length = 50, nullable = false)
     private String productName;
 
+    // 飲品容量大小（M: 中杯, L: 大杯）
     @Column(name = "size", length = 10, nullable = false)
     private String size;
 
+    // 溫度屬性（COLD: 冷飲, WARM: 溫飲, HOT: 熱飲）
     @Column(name = "temperature", length = 10, nullable = false)
     private String temperature;
 
+    // 甜度客製化（NORMAL: 正常糖, LESS: 少糖, HALF: 半糖, LIGHT: 微糖, NONE: 無糖）
     @Column(name = "sugar", length = 10, nullable = false)
     private String sugar;
 
+    // 冰塊客製化（NORMAL: 正常冰, LESS: 少冰, LIGHT: 微冰, NONE: 去冰）
     @Column(name = "ice", length = 10, nullable = false)
     private String ice;
 
+    // 購買杯數/數量
     @Column(name = "qty", nullable = false)
     private Integer qty;
 
+    // 該品項單價（含容量加價與加料加價後的單杯金額）
     @Column(name = "unit_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal unitPrice;
 
+    // 品項製作狀態（PENDING: 等候製作, MAKING: 製作中, DONE: 製作完成, PICKED_UP: 已取餐, CANCELLED: 已取消, WASTED: 已報廢）
     @Column(name = "status", length = 20, nullable = false)
     private String status = "PENDING";
 
+    // 品項備註（客戶特殊客製要求）
     @Column(name = "note")
     private String note;
 
+    // 作廢/報廢原因說明
     @Column(name = "reason")
     private String reason;
 
+    // 報廢佐證照片存放路徑
     @Column(name = "photo_path", length = 500)
     private String photoPath;
 
+    // 審核核准主管員工編號
     @Column(name = "approved_by")
     private Long approvedBy;
 
+    // 建立時間（資料庫自動生成）
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 更新時間（資料庫自動生成）
     @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime updatedAt;
 
+    // 扣除之原料庫存明細（JSON 格式字串，記錄配方 BOM 扣料數量）
     @Column(name = "deducted_inventory_json", columnDefinition = "json")
     private String deductedInventoryJson;
 
+    // 該品項原料總成本
     @Column(name = "material_cost", precision = 10, scale = 2)
     private BigDecimal materialCost;
 
+    // 已退款金額
     @Column(name = "refund_amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal refundAmount = BigDecimal.ZERO;
 
@@ -260,4 +283,3 @@ public class OrderItem {
         this.refundAmount = refundAmount;
     }
 }
-

@@ -4,42 +4,56 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 原料庫存實體（對應 inventory 資料表）
+ */
 @Entity
 @Table(name = "inventory")
 public class Inventory {
 
+    // 原料庫存編號（主鍵，自動遞增）
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "inventory_id")
     private Long inventoryId;
 
+    // 原料名稱（唯一）
     @Column(name = "name", length = 50, nullable = false, unique = true)
     private String name;
 
+    // 基本計量單位（例如 g、ml、個）
     @Column(name = "base_unit", length = 10, nullable = false)
     private String baseUnit;
 
+    // 包裝單位（例如 包、罐、箱）
     @Column(name = "pack_unit", length = 10)
     private String packUnit;
 
+    // 每包裝單位所含基本單位數量
     @Column(name = "per_pack", precision = 12, scale = 2)
     private BigDecimal perPack;
 
+    // 系統帳面現有庫存量
     @Column(name = "book_qty", precision = 12, scale = 2, nullable = false)
     private BigDecimal bookQty = BigDecimal.ZERO;
 
+    // 安全庫存警示水位
     @Column(name = "safety_stock", precision = 12, scale = 2, nullable = false)
     private BigDecimal safetyStock = BigDecimal.ZERO;
 
+    // 盤點回報實際數量
     @Column(name = "reported_qty", precision = 12, scale = 2)
     private BigDecimal reportedQty;
 
+    // 最後盤點回報人員員工編號
     @Column(name = "reported_by")
     private Long reportedBy;
 
+    // 最後盤點回報時間
     @Column(name = "reported_at")
     private LocalDateTime reportedAt;
 
+    // 原料進貨單位成本
     @Column(name = "unit_cost", precision = 10, scale = 2)
     private BigDecimal unitCost;
 
@@ -150,4 +164,3 @@ public class Inventory {
         this.unitCost = unitCost;
     }
 }
-
