@@ -1,0 +1,80 @@
+package com.example.drinkshop.entity;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "order_item_topping", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_order_item_topping", columnNames = {"item_id", "topping_id"})
+})
+public class OrderItemTopping {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "order_topping_id")
+    private Long orderToppingId;
+
+    @Column(name = "item_id", nullable = false)
+    private Long itemId;
+
+    @Column(name = "topping_id", nullable = false)
+    private Long toppingId;
+
+    @Column(name = "topping_name", length = 30, nullable = false)
+    private String toppingName;
+
+    @Column(name = "price_at_order", precision = 10, scale = 2, nullable = false)
+    private BigDecimal priceAtOrder;
+
+    public OrderItemTopping() {
+    }
+
+    public OrderItemTopping(Long orderToppingId, Long itemId, Long toppingId, String toppingName, BigDecimal priceAtOrder) {
+        this.orderToppingId = orderToppingId;
+        this.itemId = itemId;
+        this.toppingId = toppingId;
+        this.toppingName = toppingName;
+        this.priceAtOrder = priceAtOrder;
+    }
+
+    public Long getOrderToppingId() {
+        return orderToppingId;
+    }
+
+    public void setOrderToppingId(Long orderToppingId) {
+        this.orderToppingId = orderToppingId;
+    }
+
+    public Long getItemId() {
+        return itemId;
+    }
+
+    public void setItemId(Long itemId) {
+        this.itemId = itemId;
+    }
+
+    public Long getToppingId() {
+        return toppingId;
+    }
+
+    public void setToppingId(Long toppingId) {
+        this.toppingId = toppingId;
+    }
+
+    public String getToppingName() {
+        return toppingName;
+    }
+
+    public void setToppingName(String toppingName) {
+        this.toppingName = toppingName;
+    }
+
+    public BigDecimal getPriceAtOrder() {
+        return priceAtOrder;
+    }
+
+    public void setPriceAtOrder(BigDecimal priceAtOrder) {
+        this.priceAtOrder = priceAtOrder;
+    }
+}
+
