@@ -57,7 +57,8 @@ public class OrderService {
         // 同營業日的訂單異動先鎖開班資料，依序處理；等鎖期間可能已建單，所以再查一次。
         existing=repo.rows("SELECT * FROM pos_order WHERE order_no=?",orderNo);
         if (!existing.isEmpty()) return replay(existing.getFirst(),hash,staff.id());
-        if (request.memberPhone()!=null) repo.one("SELECT phone FROM member WHERE phone=?",request.memberPhone());
+        if (request.memberPhone()!=null && repo.rows("SELECT phone FROM member WHERE phone=?",request.memberPhone()).isEmpty())
+            throw ApiException.missing("找不到此會員電話，請先建立會員");
         if (request.payment()!=Payment.CASH && request.receivedCash()!=null) throw ApiException.bad("非現金付款不需要實收現金");
 
         var priced=new ArrayList<Priced>();

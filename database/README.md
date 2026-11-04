@@ -22,7 +22,8 @@ Workbench 預設開啟 Safe Updates，會擋下 006 的 UPDATE（Error 1175）�
 4. `005_team_er_alignment.sql`：團隊 ER 圖調整（金額小數、加料獨立主鍵、距離時間改名；既有本機已套用）。
 5. `006_demo_ingredient_costs.sql`：新增每單位成本與八種原料假成本（本機已套用）。
 6. `007_payment_and_wastage_workbench.sql`：收款、退款與損耗欄位。僅供新庫或經團隊同意的舊庫升級，先備份並停止所有後端，需要 CREATE/ALTER ROUTINE 權限。完整升級後重跑會跳過，部分升級會在變更前停止；不要忽略錯誤繼續。不要直接執行 `007_payment_and_wastage.sql`。共用 Aiven 已建好，不執行這些 SQL。
-7. `003_verify.sql`（選用）：檢查原始範例訂單金額、庫存及配方原料參照。
+7. `008_member_geo_source.sql`：會員座標來源欄位，僅供本機或團隊同意後升級；不要自行對 Aiven 執行。
+8. `003_verify.sql`（選用）：檢查原始範例訂單金額、庫存及配方原料參照。
 
 `scripts/` 裡的 Python 腳本只連本機 `127.0.0.1:3306`，不能用於雲端資料庫。
 

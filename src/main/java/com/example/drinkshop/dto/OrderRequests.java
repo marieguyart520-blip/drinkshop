@@ -28,7 +28,7 @@ public final class OrderRequests {
     // 不接收前端售價、總額或員工 ID：後端自行計價，操作人由登入身份取得。
     // requestId 用於安全重試；unpaid=true 表示先建單扣料，稍後才收款。
     public record Create(@NotNull UUID requestId, @NotNull Source source, Payment payment,
-        @Pattern(regexp="[0-9+() -]{5,20}") String memberPhone,
+        @Pattern(regexp="\\d{5,20}") String memberPhone,
         @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal receivedCash,
         @JsonAlias("distanceM") @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal distance,
         @JsonAlias("durationSeconds") @Min(0) Integer duration,
