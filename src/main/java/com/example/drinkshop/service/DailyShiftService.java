@@ -96,7 +96,7 @@ public class DailyShiftService {
         BigDecimal actualCounted = countedCash != null ? countedCash : BigDecimal.ZERO;
         BigDecimal diffAmount = actualCounted.subtract(expectedCash);
 
-        // 5. 更新 DailyShift 資料庫記錄狀態並儲存
+        // 5. 更新 DailyShift 資料庫記錄狀態並儲存（依 DB 規範，CLOSED 班次 revenue_by_payment 不可為 null）
         shift.setStatus("CLOSED");
         shift.setCups(totalCups);
         shift.setExpectedCash(expectedCash);
@@ -104,6 +104,9 @@ public class DailyShiftService {
         shift.setDiffReason(diffReason);
         shift.setClosedBy(closedBy);
         shift.setClosedAt(LocalDateTime.now());
+        if (shift.getRevenueByPayment() == null) {
+            shift.setRevenueByPayment("{}");
+        }
 
         dailyShiftRepository.save(shift);
 
